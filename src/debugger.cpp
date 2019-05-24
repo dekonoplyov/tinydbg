@@ -1,5 +1,12 @@
-//
-// Created by denis_konoplev on 24.05.19.
-//
-
 #include "debugger.h"
+
+namespace tinydbg {
+
+void Debugger::run()
+{
+    int waitStatus;
+    auto options = 0;
+    
+}
+
+} // namespace tinydbg

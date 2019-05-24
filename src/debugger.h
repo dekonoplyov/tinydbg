@@ -1,16 +1,22 @@
-//
-// Created by denis_konoplev on 24.05.19.
-//
+#pragma once
 
-#ifndef TINYDBG_DEBUGGER_H
-#define TINYDBG_DEBUGGER_H
+#include <string>
 
+namespace tinydbg {
 
+class Debugger {
+public:
+    Debugger(std::string programName, int pid)
+        : programName{std::move(programName)}
+        , pid{pid}
+    {
+    }
 
-class debugger {
+    void run();
 
+private:
+    std::string programName;
+    int pid;
 };
 
-
-
-#endif //TINYDBG_DEBUGGER_H
+} // namespace tinydbg
