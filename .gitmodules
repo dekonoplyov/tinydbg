@@ -1,0 +1,8 @@
+[submodule "thirdparty/linenoise"]
+	path = thirdparty/linenoise
+	url = https://github.com/antirez/linenoise.git
+	branch = master
+[submodule "thirdparty/libelfin"]
+	path = thirdparty/libelfin
+	url = https://github.com/TartanLlama/libelfin.git
+	branch = fbreg
