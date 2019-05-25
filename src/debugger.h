@@ -4,6 +4,8 @@
 
 namespace tinydbg {
 
+int debug(const std::string& programName);
+
 class Debugger {
 public:
     Debugger(std::string programName, int pid)
@@ -13,6 +15,8 @@ public:
     }
 
     void run();
+    void handleCommand(const std::string& line);
+    void continueExecution();
 
 private:
     std::string programName;
