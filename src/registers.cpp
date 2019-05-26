@@ -32,9 +32,10 @@ uint64_t getRegisterValue(pid_t pid, Register r)
     return *(reinterpret_cast<uint64_t*>(&regs + (it - REGISTOR_DESCRIPTORS.cbegin())));
 }
 
-uint64_t getRegisterValueFromDwarf(pid_t pid, int regNum)
+uint64_t getRegisterValueFromDwarf(pid_t pid, int dwarfRegNum)
 {
-    const auto it = findRegisterDescriptor([regNum](const auto& rd) { return rd.dwarfReg == regNum; });
+    const auto it = findRegisterDescriptor(
+        [dwarfRegNum](const auto& rd) { return rd.dwarfReg == dwarfRegNum; });
     if (it == REGISTOR_DESCRIPTORS.cend()) {
         throw std::out_of_range{"Unknown dwarf register"};
     }
