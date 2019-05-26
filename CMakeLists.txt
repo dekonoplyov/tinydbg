@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
 project(tinydbg)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 include_directories(
         thirdparty/libelfin
@@ -9,6 +9,7 @@ include_directories(
 add_executable(tinydbg
         src/main.cpp
         src/debugger.cpp src/debugger.h
+        src/breakpoint.cpp src/breakpoint.h
         thirdparty/linenoise/linenoise.c)
 
 add_executable(add example/add.cpp)

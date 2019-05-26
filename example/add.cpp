@@ -7,6 +7,7 @@ int add(int a, int b)
 
 int main()
 {
-    std::cout << "Hi there\n";
+    std::cerr << "Hi there\n";
+    std::cerr << "Hi yourself\n";
     return add(2, -2);
 }
