@@ -8,8 +8,9 @@ include_directories(
         thirdparty/linenoise)
 add_executable(tinydbg
         src/main.cpp
-        src/debugger.cpp src/debugger.h
         src/breakpoint.cpp src/breakpoint.h
+        src/debugger.cpp src/debugger.h
+        src/registers.cpp src/registers.h
         thirdparty/linenoise/linenoise.c)
 
 add_executable(add example/add.cpp)
