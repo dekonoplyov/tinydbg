@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <functional>
+#include <iomanip>
+#include <iostream>
 
 namespace tinydbg {
 
@@ -11,9 +13,10 @@ namespace {
 
 auto findRegisterDescriptor(std::function<bool(const RegisterDescriptor&)> predicate)
 {
-    return std::find_if(REGISTOR_DESCRIPTORS.cbegin(),
-                        REGISTOR_DESCRIPTORS.cend(),
-                        predicate);
+    return std::find_if(
+        REGISTOR_DESCRIPTORS.cbegin(),
+        REGISTOR_DESCRIPTORS.cend(),
+        predicate);
 }
 
 } // namespace
@@ -29,6 +32,15 @@ uint64_t getRegisterValue(pid_t pid, Register r)
     return *(reinterpret_cast<uint64_t*>(&regs + (it - REGISTOR_DESCRIPTORS.cbegin())));
 }
 
+uint64_t getRegisterValueFromDwarf(pid_t pid, int regNum)
+{
+    const auto it = findRegisterDescriptor([regNum](const auto& rd) { return rd.dwarfReg == regNum; });
+    if (it == REGISTOR_DESCRIPTORS.cend()) {
+        throw std::out_of_range{"Unknown dwarf register"};
+    }
+    return getRegisterValue(pid, it->reg);
+}
+
 void setRegisterValue(pid_t pid, Register r, uint64_t value)
 {
     user_regs_struct regs;
@@ -39,15 +51,25 @@ void setRegisterValue(pid_t pid, Register r, uint64_t value)
     ptrace(PTRACE_SETREGS, pid, nullptr, &regs);
 }
 
-uint64_t getRegisterValueFromDwarf(pid_t pid, int regNum)
+std::string getRegisterName(Register r)
 {
-    const auto it = findRegisterDescriptor([regNum](const auto& rd) { return rd.dwarfReg == regNum; });
-    if (it == REGISTOR_DESCRIPTORS.cend()) {
-        throw std::out_of_range{"Unknown dwarf register"};
-    }
-    return getRegisterValue(pid, it->reg);
+    const auto it = findRegisterDescriptor([r](auto&& rd) { return rd.reg == r; });
+    return it->name;
 }
 
-//uint64_t
+Register getRegister(const std::string& name)
+{
+    const auto it = findRegisterDescriptor([name](auto&& rd) { return rd.name == name; });
+    return it->reg;
+}
+
+void dumpRegisters(pid_t pid)
+{
+    for (const auto& r : REGISTOR_DESCRIPTORS) {
+        std::cerr << r.name << " 0x"
+                  << std::setfill('0') << std::setw(16) << std::hex
+                  << getRegisterValue(pid, r.reg) << std::endl;
+    }
+}
 
 } // namespace tinydbg
