@@ -190,8 +190,6 @@ void Debugger::stepOverBreakpoint() {
     // -1 because execution will go past the breakpoint
     const auto possibleBpLocation = getPC() - 1;
     if (breakpoints.count(possibleBpLocation) > 0) {
-        std::cerr << "it is bp\n";
-        std::cerr << std::hex << possibleBpLocation << "\n";
         auto& breakpoint = breakpoints.at(possibleBpLocation);
         if (breakpoint.isEnabled()) {
             const auto previousInstructionAddress = possibleBpLocation;
