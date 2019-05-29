@@ -13,6 +13,6 @@ add_executable(tinydbg
         src/registers.cpp src/registers.h
         thirdparty/linenoise/linenoise.c)
 
-add_executable(add example/add.cpp)
-set_target_properties(add
+add_executable(hello example/hello.cpp)
+set_target_properties(hello
         PROPERTIES COMPILE_FLAGS "-g -O0")
