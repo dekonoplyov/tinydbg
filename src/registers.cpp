@@ -26,7 +26,8 @@ uint64_t getRegisterValue(pid_t pid, Register r)
     user_regs_struct regs;
     ptrace(PTRACE_GETREGS, pid, nullptr, &regs);
 
-    const auto it = findRegisterDescriptor([r](const auto& rd) { return rd.reg == r; });
+    const auto it = findRegisterDescriptor(
+        [r](const auto& rd) { return rd.reg == r; });
     // we can do that cause we have same layout of REGISTOR_DESCRIPTORS and user_regs_struct
     // same could be done with switch(Register)
     return *(reinterpret_cast<uint64_t*>(&regs) + (it - REGISTOR_DESCRIPTORS.cbegin()));
@@ -47,21 +48,24 @@ void setRegisterValue(pid_t pid, Register r, uint64_t value)
     user_regs_struct regs;
     ptrace(PTRACE_GETREGS, pid, nullptr, &regs);
 
-    const auto it = findRegisterDescriptor([r](const auto& rd) { return rd.reg == r; });
+    const auto it = findRegisterDescriptor(
+        [r](const auto& rd) { return rd.reg == r; });
     *(reinterpret_cast<uint64_t*>(&regs) + (it - REGISTOR_DESCRIPTORS.cbegin())) = value;
     ptrace(PTRACE_SETREGS, pid, nullptr, &regs);
 }
 
 std::string getRegisterName(Register r)
 {
-    const auto it = findRegisterDescriptor([r](auto&& rd) { return rd.reg == r; });
+    const auto it = findRegisterDescriptor(
+        [r](const auto& rd) { return rd.reg == r; });
     return it->name;
 }
 
 std::optional<Register> getRegister(const std::string& name)
 {
-    const auto it = findRegisterDescriptor([name](auto&& rd) { return rd.name == name; });
-    if (it != REGISTOR_DESCRIPTORS.cend()) {
+    const auto it = findRegisterDescriptor(
+        [name](const auto& rd) { return rd.name == name; });
+    if (it == REGISTOR_DESCRIPTORS.cend()) {
         return {};
     }
     return it->reg;

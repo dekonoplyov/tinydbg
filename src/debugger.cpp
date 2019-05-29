@@ -116,7 +116,7 @@ void Debugger::handleRegister(const std::vector<std::string>& args)
             return;
         }
 
-        std::cerr << getRegisterValue(pid, *reg) << std::endl;
+        std::cerr << "0x" << std::hex << getRegisterValue(pid, *reg) << std::endl;
     } else if (isPrefix(args[1], "write")) {
         if (args.size() < 4) {
             std::cerr << "Insufficient num of args to write register\n";
