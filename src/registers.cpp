@@ -58,9 +58,12 @@ std::string getRegisterName(Register r)
     return it->name;
 }
 
-Register getRegister(const std::string& name)
+std::optional<Register> getRegister(const std::string& name)
 {
     const auto it = findRegisterDescriptor([name](auto&& rd) { return rd.name == name; });
+    if (it != REGISTOR_DESCRIPTORS.cend()) {
+        return {};
+    }
     return it->reg;
 }
 

@@ -21,9 +21,19 @@ public:
     void run();
     void handleCommand(const std::string& line);
     void handleBreakpoint(const std::vector<std::string>& args);
+    void handleRegister(const std::vector<std::string>& args);
+    void handleMemory(const std::vector<std::string>& args);
     void continueExecution();
     // address should be offset to process virtual memory
     void setBreakpoint(std::intptr_t address);
+    void stepOverBreakpoint();
+    void waitForSignal();
+
+    uint64_t readMemory(uint64_t address) const;
+    void writeMemory(uint64_t address, uint64_t value);
+
+    uint64_t getPC() const;
+    void setPC(uint64_t pc);
 
 private:
     std::string programName;

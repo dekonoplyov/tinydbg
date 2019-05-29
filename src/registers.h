@@ -3,6 +3,7 @@
 #include <sys/user.h>
 
 #include <array>
+#include <optional>
 
 namespace tinydbg {
 
@@ -60,7 +61,7 @@ uint64_t getRegisterValue(pid_t pid, Register r);
 uint64_t getRegisterValueFromDwarf(pid_t pid, int dwarfRegNum);
 void setRegisterValue(pid_t pid, Register r, uint64_t value);
 std::string getRegisterName(Register r);
-Register getRegister(const std::string& name);
+std::optional<Register> getRegister(const std::string& name);
 void dumpRegisters(pid_t pid);
 
 } // namespace tinydbg

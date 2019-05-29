@@ -1,5 +1,7 @@
 #include "debugger.h"
 
+#include "registers.h"
+
 #include "linenoise.h"
 
 #include <cstddef>
@@ -50,9 +52,7 @@ std::optional<std::intptr_t> parseAddress(const std::string& s)
 
 void Debugger::run()
 {
-    int waitStatus;
-    auto options = 0;
-    waitpid(pid, &waitStatus, options);
+    waitForSignal();
 
     char* line = linenoise("tinydbg> ");
     while (line != nullptr) {
@@ -72,6 +72,8 @@ void Debugger::handleCommand(const std::string& line)
         continueExecution();
     } else if (isPrefix(command, "breakpoint")) {
         handleBreakpoint(args);
+    } else if (isPrefix(command, "register")) {
+        handleRegister(args);
     } else {
         std::cerr << "Unknown command\n";
     }
@@ -93,13 +95,90 @@ void Debugger::handleBreakpoint(const std::vector<std::string>& args)
     setBreakpoint(*address);
 }
 
+void Debugger::handleRegister(const std::vector<std::string>& args)
+{
+    if (args.size() < 2) {
+        std::cerr << "Insufficient num of args to register command\n";
+        return;
+    }
+
+    if (isPrefix(args[1], "dump")) {
+        dumpRegisters(pid);
+    } else if (isPrefix(args[1], "read")) {
+        if (args.size() < 3) {
+            std::cerr << "Insufficient num of args to read register\n";
+            return;
+        }
+
+        const auto reg = getRegister(args[2]);
+        if (!reg) {
+            std::cerr << "Unknown register: '" << args[2] << "'\n";
+            return;
+        }
+
+        std::cerr << getRegisterValue(pid, *reg) << std::endl;
+    } else if (isPrefix(args[1], "write")) {
+        if (args.size() < 4) {
+            std::cerr << "Insufficient num of args to write register\n";
+            return;
+        }
+
+        const auto reg = getRegister(args[2]);
+        if (!reg) {
+            std::cerr << "Unknown register: '" << args[2] << "'\n";
+            return;
+        }
+
+        const auto address = parseAddress(args[3]);
+        if (!address) {
+            std::cerr << "Failed to parse address, expected format: 0xADDRESS\n";
+            return;
+        }
+
+        setRegisterValue(pid, *reg, *address);
+    } else {
+        std::cerr << "Unknown register command: '" << args[1] << "'\n";
+    }
+}
+
+void Debugger::handleMemory(const std::vector<std::string>& args)
+{
+    if (args.size() < 3) {
+        std::cerr << "todo\n";
+        return;
+    }
+
+    const auto address = parseAddress(args[2]);
+    if (!address) {
+        std::cerr << "Failed to parse address, expected format: 0xADDRESS\n";
+        return;
+    }
+
+    if (isPrefix(args[1], "read")) {
+        std::cerr << std::hex << readMemory(*address) << std::endl;
+    } else if (isPrefix(args[1], "write")) {
+        if (args.size() < 4) {
+            std::cerr << "tododo\n";
+            return;
+        }
+        const auto value = parseAddress(args[3]);
+        if (!value) {
+            std::cerr << "Failed to parse address, expected format: 0xADDRESS\n";
+            return;
+        }
+
+        writeMemory(*address, *value);
+    }
+}
+
 void Debugger::continueExecution()
 {
-    ptrace(PTRACE_CONT, pid, nullptr, nullptr);
+    std::cerr << "try step over\n";
+    stepOverBreakpoint();
+    std::cerr << "stepped over\n";
 
-    int waitStatus;
-    auto options = 0;
-    waitpid(pid, &waitStatus, options);
+    ptrace(PTRACE_CONT, pid, nullptr, nullptr);
+    waitForSignal();
 }
 
 void Debugger::setBreakpoint(std::intptr_t address)
@@ -108,6 +187,50 @@ void Debugger::setBreakpoint(std::intptr_t address)
     Breakpoint breakpoint{pid, address};
     breakpoint.enable();
     breakpoints.insert({address, breakpoint});
+}
+
+void Debugger::stepOverBreakpoint() {
+    // -1 because execution will go past the breakpoint
+    const auto possibleBpLocation = getPC() - 1;
+    if (breakpoints.count(possibleBpLocation) > 0) {
+        std::cerr << "it is bp\n";
+        std::cerr << std::hex << possibleBpLocation << "\n";
+        auto& breakpoint = breakpoints.at(possibleBpLocation);
+        if (breakpoint.isEnabled()) {
+            const auto previousInstructionAddress = possibleBpLocation;
+            setPC(previousInstructionAddress);
+            breakpoint.disable();
+            ptrace(PTRACE_SINGLESTEP, pid, nullptr, nullptr);
+            waitForSignal();
+            breakpoint.enable();
+        }
+    }
+}
+
+void Debugger::waitForSignal() {
+    int waitStatus;
+    auto options = 0;
+    waitpid(pid, &waitStatus, options);
+}
+
+uint64_t Debugger::readMemory(uint64_t address) const
+{
+    return ptrace(PTRACE_PEEKDATA, pid, address, nullptr);
+}
+
+void Debugger::writeMemory(uint64_t address, uint64_t value)
+{
+    ptrace(PTRACE_POKEDATA, pid, address, value);
+}
+
+uint64_t Debugger::getPC() const
+{
+    return getRegisterValue(pid, Register::rip);
+}
+
+void Debugger::setPC(uint64_t pc)
+{
+    setRegisterValue(pid, Register::rip, pc);
 }
 
 int debug(const std::string& programName)
