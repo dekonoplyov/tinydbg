@@ -186,7 +186,8 @@ void Debugger::setBreakpoint(std::intptr_t address)
     breakpoints.insert({address, breakpoint});
 }
 
-void Debugger::stepOverBreakpoint() {
+void Debugger::stepOverBreakpoint()
+{
     // -1 because execution will go past the breakpoint
     const auto possibleBpLocation = getPC() - 1;
     if (breakpoints.count(possibleBpLocation) > 0) {
@@ -202,7 +203,8 @@ void Debugger::stepOverBreakpoint() {
     }
 }
 
-void Debugger::waitForSignal() {
+void Debugger::waitForSignal()
+{
     int waitStatus;
     auto options = 0;
     waitpid(pid, &waitStatus, options);
