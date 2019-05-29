@@ -173,10 +173,7 @@ void Debugger::handleMemory(const std::vector<std::string>& args)
 
 void Debugger::continueExecution()
 {
-    std::cerr << "try step over\n";
     stepOverBreakpoint();
-    std::cerr << "stepped over\n";
-
     ptrace(PTRACE_CONT, pid, nullptr, nullptr);
     waitForSignal();
 }

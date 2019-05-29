@@ -29,7 +29,7 @@ uint64_t getRegisterValue(pid_t pid, Register r)
     const auto it = findRegisterDescriptor([r](const auto& rd) { return rd.reg == r; });
     // we can do that cause we have same layout of REGISTOR_DESCRIPTORS and user_regs_struct
     // same could be done with switch(Register)
-    return *(reinterpret_cast<uint64_t*>(&regs + (it - REGISTOR_DESCRIPTORS.cbegin())));
+    return *(reinterpret_cast<uint64_t*>(&regs) + (it - REGISTOR_DESCRIPTORS.cbegin()));
 }
 
 uint64_t getRegisterValueFromDwarf(pid_t pid, int dwarfRegNum)
@@ -48,7 +48,7 @@ void setRegisterValue(pid_t pid, Register r, uint64_t value)
     ptrace(PTRACE_GETREGS, pid, nullptr, &regs);
 
     const auto it = findRegisterDescriptor([r](const auto& rd) { return rd.reg == r; });
-    *(reinterpret_cast<uint64_t*>(&regs + (it - REGISTOR_DESCRIPTORS.cbegin()))) = value;
+    *(reinterpret_cast<uint64_t*>(&regs) + (it - REGISTOR_DESCRIPTORS.cbegin())) = value;
     ptrace(PTRACE_SETREGS, pid, nullptr, &regs);
 }
 
