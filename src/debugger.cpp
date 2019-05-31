@@ -11,6 +11,7 @@
 #include <sys/ptrace.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <fstream>
 
 namespace tinydbg {
 
@@ -37,8 +38,26 @@ std::vector<std::string> split(const std::string& s, char delimiter)
     return tokens;
 }
 
+// ugly workaround to get offset from /proc/<pid>/maps
+std::optional<uint64_t> getOffset(pid_t pid)
+{
+    std::string filename = "/proc/" + std::to_string(pid) + "/maps";
+    std::ifstream f{filename};
+    if (f.good()) {
+        std::string line;
+        getline(f, line);
+        auto tokens = split(line, '-');
+        if (tokens.size() < 2) {
+            return {};
+        }
+        return std::stol(tokens[0], 0, 16);
+    }
+
+    return {};
+}
+
 // Parse string in OxADDRESS format
-std::optional<std::intptr_t> parseAddress(const std::string& s)
+std::optional<uint64_t> parseAddress(const std::string& s)
 {
     if (!isPrefix("0x", s)) {
         return {};
@@ -178,12 +197,13 @@ void Debugger::continueExecution()
     waitForSignal();
 }
 
-void Debugger::setBreakpoint(std::intptr_t address)
+void Debugger::setBreakpoint(uint64_t address)
 {
-    std::cerr << "Set breakpoint at address 0x" << std::hex << address << std::endl;
-    Breakpoint breakpoint{pid, address};
+    auto offsetAddress = address + *getOffset(pid);
+    std::cerr << "Set breakpoint at address 0x" << std::hex << offsetAddress  << std::endl;
+    Breakpoint breakpoint{pid, offsetAddress};
     breakpoint.enable();
-    breakpoints.insert({address, breakpoint});
+    breakpoints.insert({offsetAddress, breakpoint});
 }
 
 void Debugger::stepOverBreakpoint()

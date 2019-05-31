@@ -25,7 +25,7 @@ public:
     void handleMemory(const std::vector<std::string>& args);
     void continueExecution();
     // address should be offset to process virtual memory
-    void setBreakpoint(std::intptr_t address);
+    void setBreakpoint(uint64_t address);
     void stepOverBreakpoint();
     void waitForSignal();
 
@@ -38,7 +38,7 @@ public:
 private:
     std::string programName;
     int pid;
-    std::unordered_map<std::intptr_t, Breakpoint> breakpoints;
+    std::unordered_map<uint64_t, Breakpoint> breakpoints;
 };
 
 } // namespace tinydbg

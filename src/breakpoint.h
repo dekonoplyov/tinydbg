@@ -7,7 +7,7 @@ namespace tinydbg {
 
 class Breakpoint {
 public:
-    Breakpoint(pid_t pid, std::intptr_t addr)
+    Breakpoint(pid_t pid, uint64_t addr)
         : pid{pid}
         , addr{addr}
         , enabled{false}
@@ -18,11 +18,11 @@ public:
     void enable();
     void disable();
     bool isEnabled() const { return enabled; }
-    std::intptr_t getAddress() const { return addr; }
+    uint64_t getAddress() const { return addr; }
 
 private:
     pid_t pid;
-    std::intptr_t addr;
+    uint64_t addr;
     bool enabled;
     // data which used to be at the breakpoint address
     uint8_t savedData;

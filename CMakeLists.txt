@@ -16,3 +16,7 @@ add_executable(tinydbg
 add_executable(hello example/hello.cpp)
 set_target_properties(hello
         PROPERTIES COMPILE_FLAGS "-g -O0")
+
+add_executable(variables example/variables.cpp)
+set_target_properties(variables
+        PROPERTIES COMPILE_FLAGS "-g -O0")
