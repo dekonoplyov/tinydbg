@@ -5,13 +5,13 @@
 #include "linenoise.h"
 
 #include <cstddef>
+#include <fstream>
 #include <iostream>
 #include <optional>
 #include <sstream>
 #include <sys/ptrace.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <fstream>
 
 namespace tinydbg {
 
@@ -46,6 +46,7 @@ std::optional<uint64_t> getOffset(pid_t pid)
     if (f.good()) {
         std::string line;
         getline(f, line);
+        // assume ADDRESS-ADDRESS ... format
         auto tokens = split(line, '-');
         if (tokens.size() < 2) {
             return {};
@@ -68,6 +69,19 @@ std::optional<uint64_t> parseAddress(const std::string& s)
 }
 
 } // namespace
+
+Debugger::Debugger(std::string programName, int pid)
+    : programName{std::move(programName)}
+    , pid{pid}
+    , memoryOffset{0}
+{
+    auto offset = getOffset(pid);
+    if (offset) {
+        memoryOffset = *offset;
+    } else {
+        std::cerr << "Failed to get proc memory offset\n";
+    }
+}
 
 void Debugger::run()
 {
@@ -123,28 +137,25 @@ void Debugger::handleRegister(const std::vector<std::string>& args)
 
     if (isPrefix(args[1], "dump")) {
         dumpRegisters(pid);
-    } else if (isPrefix(args[1], "read")) {
-        if (args.size() < 3) {
-            std::cerr << "Insufficient num of args to read register\n";
-            return;
-        }
+        return;
+    } 
+    
+    if (args.size() < 3) {
+        std::cerr << "Insufficient num of args to read register\n";
+        return;
+    }
 
-        const auto reg = getRegister(args[2]);
-        if (!reg) {
-            std::cerr << "Unknown register: '" << args[2] << "'\n";
-            return;
-        }
-
+    const auto reg = getRegister(args[2]);
+    if (!reg) {
+        std::cerr << "Unknown register: '" << args[2] << "'\n";
+        return;
+    }
+    
+    if (isPrefix(args[1], "read")) {
         std::cerr << "0x" << std::hex << getRegisterValue(pid, *reg) << std::endl;
     } else if (isPrefix(args[1], "write")) {
         if (args.size() < 4) {
             std::cerr << "Insufficient num of args to write register\n";
-            return;
-        }
-
-        const auto reg = getRegister(args[2]);
-        if (!reg) {
-            std::cerr << "Unknown register: '" << args[2] << "'\n";
             return;
         }
 
@@ -163,7 +174,7 @@ void Debugger::handleRegister(const std::vector<std::string>& args)
 void Debugger::handleMemory(const std::vector<std::string>& args)
 {
     if (args.size() < 3) {
-        std::cerr << "todo\n";
+        std::cerr << "Insufficient num of args to work with memory\n";
         return;
     }
 
@@ -199,11 +210,11 @@ void Debugger::continueExecution()
 
 void Debugger::setBreakpoint(uint64_t address)
 {
-    auto offsetAddress = address + *getOffset(pid);
-    std::cerr << "Set breakpoint at address 0x" << std::hex << offsetAddress  << std::endl;
-    Breakpoint breakpoint{pid, offsetAddress};
+    auto offsettedAddress = getOffsettedAddress(address);
+    std::cerr << "Set breakpoint at address 0x" << std::hex << offsettedAddress << std::endl;
+    Breakpoint breakpoint{pid, offsettedAddress};
     breakpoint.enable();
-    breakpoints.insert({offsetAddress, breakpoint});
+    breakpoints.insert({offsettedAddress, breakpoint});
 }
 
 void Debugger::stepOverBreakpoint()
@@ -248,6 +259,11 @@ uint64_t Debugger::getPC() const
 void Debugger::setPC(uint64_t pc)
 {
     setRegisterValue(pid, Register::rip, pc);
+}
+
+uint64_t Debugger::getOffsettedAddress(uint64_t addr)
+{
+    return memoryOffset + addr;
 }
 
 int debug(const std::string& programName)

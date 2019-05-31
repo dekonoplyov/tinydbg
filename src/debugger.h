@@ -12,11 +12,7 @@ int debug(const std::string& programName);
 
 class Debugger {
 public:
-    Debugger(std::string programName, int pid)
-        : programName{std::move(programName)}
-        , pid{pid}
-    {
-    }
+    Debugger(std::string programName, int pid);
 
     void run();
     void handleCommand(const std::string& line);
@@ -35,9 +31,12 @@ public:
     uint64_t getPC() const;
     void setPC(uint64_t pc);
 
+    uint64_t getOffsettedAddress(uint64_t addr);
+
 private:
     std::string programName;
     int pid;
+    uint64_t memoryOffset;
     std::unordered_map<uint64_t, Breakpoint> breakpoints;
 };
 
