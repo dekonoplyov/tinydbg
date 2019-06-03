@@ -20,3 +20,13 @@ set_target_properties(hello
 add_executable(variables example/variables.cpp)
 set_target_properties(variables
         PROPERTIES COMPILE_FLAGS "-g -O0")
+
+add_custom_target(
+   libelfin
+   COMMAND make
+   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/thirdparty/libelfin
+)
+target_link_libraries(tinydbg
+                      ${PROJECT_SOURCE_DIR}/thirdparty/libelfin/dwarf/libdwarf++.so
+                      ${PROJECT_SOURCE_DIR}/thirdparty/libelfin/elf/libelf++.so)
+add_dependencies(tinydbg libelfin)

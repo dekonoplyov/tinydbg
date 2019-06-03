@@ -4,15 +4,18 @@
 
 #include "linenoise.h"
 
-#include <cstddef>
-#include <fcntl.h>
-#include <fstream>
-#include <iostream>
-#include <optional>
-#include <sstream>
+#include <vector>
 #include <sys/ptrace.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <sstream>
+#include <fstream>
+#include <iostream>
+#include <iomanip>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 namespace tinydbg {
 
@@ -42,6 +45,9 @@ std::vector<std::string> split(const std::string& s, char delimiter)
 // ugly workaround to get offset from /proc/<pid>/maps
 std::optional<uint64_t> getOffset(pid_t pid)
 {
+    // TODO get rid of this sleep
+    // wait to change /proc/<pid>/maps after fork
+    sleep(1);
     std::string filename = "/proc/" + std::to_string(pid) + "/maps";
     std::ifstream f{filename};
     if (f.good()) {
@@ -69,6 +75,13 @@ std::optional<uint64_t> parseAddress(const std::string& s)
     return std::stol(addr, 0, 16);
 }
 
+siginfo_t getSigInfo(pid_t pid)
+{
+    siginfo_t info;
+    ptrace(PTRACE_GETSIGINFO, pid, nullptr, &info);
+    return info;
+}
+
 } // namespace
 
 Debugger::Debugger(std::string programName, int pid)
@@ -83,7 +96,7 @@ Debugger::Debugger(std::string programName, int pid)
         std::cerr << "Failed to get proc memory offset\n";
     }
 
-    auto fd = open(programName.c_str(), O_RDONLY);
+    auto fd = open(this->programName.c_str(), O_RDONLY);
 
     elf = elf::elf{elf::create_mmap_loader(fd)};
     dwarf = dwarf::dwarf{dwarf::elf::create_loader(elf)};
@@ -194,7 +207,7 @@ void Debugger::handleMemory(const std::vector<std::string>& args)
         std::cerr << std::hex << readMemory(*address) << std::endl;
     } else if (isPrefix(args[1], "write")) {
         if (args.size() < 4) {
-            std::cerr << "tododo\n";
+            std::cerr << "Insufficient num of args to write memory\n";
             return;
         }
         const auto value = parseAddress(args[3]);
@@ -225,13 +238,9 @@ void Debugger::setBreakpoint(uint64_t address)
 
 void Debugger::stepOverBreakpoint()
 {
-    // -1 because execution will go past the breakpoint
-    const auto possibleBpLocation = getPC() - 1;
-    if (breakpoints.count(possibleBpLocation) > 0) {
-        auto& breakpoint = breakpoints.at(possibleBpLocation);
+    if (breakpoints.count(getPC()) > 0) {
+        auto& breakpoint = breakpoints.at(getPC());
         if (breakpoint.isEnabled()) {
-            const auto previousInstructionAddress = possibleBpLocation;
-            setPC(previousInstructionAddress);
             breakpoint.disable();
             ptrace(PTRACE_SINGLESTEP, pid, nullptr, nullptr);
             waitForSignal();
@@ -245,6 +254,39 @@ void Debugger::waitForSignal()
     int waitStatus;
     auto options = 0;
     waitpid(pid, &waitStatus, options);
+
+    auto siginfo = getSigInfo(pid);
+    switch (siginfo.si_signo) {
+    case SIGTRAP:
+        handleSigtrap(siginfo);
+        break;
+    case SIGSEGV:
+        std::cerr << "Segfault, reason: " << siginfo.si_code << std::endl;
+        break;
+    default:
+        std::cerr << "Got signal: " << strsignal(siginfo.si_signo) << std::endl;
+        break;
+    }
+}
+
+void Debugger::handleSigtrap(siginfo_t siginfo)
+{
+    switch (siginfo.si_code) {
+    case SI_KERNEL:
+    case TRAP_BRKPT: {
+        // put pc back where it should be
+        setPC(getPC() - 1);
+        std::cerr << "Hit breakpoint at address 0x" << std::hex << getPC() << std::endl;
+        auto lineEntry = getLineEntry(getPC());
+        printSource(lineEntry->file->path, lineEntry->line);
+        return;
+    }
+    case TRAP_TRACE:
+        return;
+    default:
+        std::cerr << "Unknown SIGTRAP code: " << siginfo.si_code << std::endl;
+        return;
+    }
 }
 
 uint64_t Debugger::readMemory(uint64_t address) const
@@ -269,6 +311,7 @@ void Debugger::setPC(uint64_t pc)
 
 dwarf::die Debugger::getFunction(uint64_t pc)
 {
+    pc -= memoryOffset;
     for (auto& cu : dwarf.compilation_units()) {
         if (die_pc_range(cu.root()).contains(pc)) {
             for (const auto& die : cu.root()) {
@@ -286,6 +329,7 @@ dwarf::die Debugger::getFunction(uint64_t pc)
 
 dwarf::line_table::iterator Debugger::getLineEntry(uint64_t pc)
 {
+    pc -= memoryOffset;
     for (auto& cu : dwarf.compilation_units()) {
         if (die_pc_range(cu.root()).contains(pc)) {
             auto& lineTable = cu.get_line_table();
@@ -334,6 +378,8 @@ void Debugger::printSource(const std::string& fileName, size_t line, size_t line
             std::cerr << (currentLine == line ? "> " : "  ");
         }
     }
+
+    std::cerr << std::endl;
 }
 
 int debug(const std::string& programName)

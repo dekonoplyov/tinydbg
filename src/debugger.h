@@ -5,9 +5,9 @@
 #include "dwarf/dwarf++.hh"
 #include "elf/elf++.hh"
 
+#include <signal.h>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 namespace tinydbg {
 
@@ -27,6 +27,7 @@ public:
     void setBreakpoint(uint64_t address);
     void stepOverBreakpoint();
     void waitForSignal();
+    void handleSigtrap(siginfo_t siginfo);
 
     uint64_t readMemory(uint64_t address) const;
     void writeMemory(uint64_t address, uint64_t value);
@@ -39,7 +40,7 @@ public:
 
     uint64_t getOffsettedAddress(uint64_t addr);
 
-    void printSource(const std::string& fileName, size_t line, size_t linesContext);
+    void printSource(const std::string& fileName, size_t line, size_t linesContext = 2);
 
 private:
     std::string programName;
