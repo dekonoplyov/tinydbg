@@ -2,6 +2,9 @@
 
 #include "breakpoint.h"
 
+#include "dwarf/dwarf++.hh"
+#include "elf/elf++.hh"
+
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -31,12 +34,19 @@ public:
     uint64_t getPC() const;
     void setPC(uint64_t pc);
 
+    dwarf::die getFunction(uint64_t pc);
+    dwarf::line_table::iterator getLineEntry(uint64_t pc);
+
     uint64_t getOffsettedAddress(uint64_t addr);
+
+    void printSource(const std::string& fileName, size_t line, size_t linesContext);
 
 private:
     std::string programName;
     int pid;
     uint64_t memoryOffset;
+    elf::elf elf;
+    dwarf::dwarf dwarf;
     std::unordered_map<uint64_t, Breakpoint> breakpoints;
 };
 

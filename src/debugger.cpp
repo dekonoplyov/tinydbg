@@ -5,6 +5,7 @@
 #include "linenoise.h"
 
 #include <cstddef>
+#include <fcntl.h>
 #include <fstream>
 #include <iostream>
 #include <optional>
@@ -81,6 +82,11 @@ Debugger::Debugger(std::string programName, int pid)
     } else {
         std::cerr << "Failed to get proc memory offset\n";
     }
+
+    auto fd = open(programName.c_str(), O_RDONLY);
+
+    elf = elf::elf{elf::create_mmap_loader(fd)};
+    dwarf = dwarf::dwarf{dwarf::elf::create_loader(elf)};
 }
 
 void Debugger::run()
@@ -138,8 +144,8 @@ void Debugger::handleRegister(const std::vector<std::string>& args)
     if (isPrefix(args[1], "dump")) {
         dumpRegisters(pid);
         return;
-    } 
-    
+    }
+
     if (args.size() < 3) {
         std::cerr << "Insufficient num of args to read register\n";
         return;
@@ -150,7 +156,7 @@ void Debugger::handleRegister(const std::vector<std::string>& args)
         std::cerr << "Unknown register: '" << args[2] << "'\n";
         return;
     }
-    
+
     if (isPrefix(args[1], "read")) {
         std::cerr << "0x" << std::hex << getRegisterValue(pid, *reg) << std::endl;
     } else if (isPrefix(args[1], "write")) {
@@ -261,9 +267,73 @@ void Debugger::setPC(uint64_t pc)
     setRegisterValue(pid, Register::rip, pc);
 }
 
+dwarf::die Debugger::getFunction(uint64_t pc)
+{
+    for (auto& cu : dwarf.compilation_units()) {
+        if (die_pc_range(cu.root()).contains(pc)) {
+            for (const auto& die : cu.root()) {
+                if (die.tag == dwarf::DW_TAG::subprogram) {
+                    if (die_pc_range(cu.root()).contains(pc)) {
+                        return die;
+                    }
+                }
+            }
+        }
+    }
+
+    throw std::out_of_range{"Cannot find function"};
+}
+
+dwarf::line_table::iterator Debugger::getLineEntry(uint64_t pc)
+{
+    for (auto& cu : dwarf.compilation_units()) {
+        if (die_pc_range(cu.root()).contains(pc)) {
+            auto& lineTable = cu.get_line_table();
+            auto it = lineTable.find_address(pc);
+            if (it == lineTable.end()) {
+                throw std::out_of_range{"Cannot find line entry"};
+            } else {
+                return it;
+            }
+        }
+    }
+
+    throw std::out_of_range{"Cannot find line entry"};
+}
+
 uint64_t Debugger::getOffsettedAddress(uint64_t addr)
 {
     return memoryOffset + addr;
+}
+
+void Debugger::printSource(const std::string& fileName, size_t line, size_t linesContext)
+{
+    std::ifstream file{fileName};
+
+    // Work out a window around the desired line
+    auto startLine = line <= linesContext ? 1 : line - linesContext;
+    auto endLine = line + linesContext + (line < linesContext ? linesContext - line : 0) + 1;
+
+    char c{};
+    size_t currentLine = 1;
+    while (currentLine != startLine && file.get(c)) {
+        if (c == '\n') {
+            ++currentLine;
+        }
+    }
+
+    // Output cursor if we're at the current line
+    std::cerr << (currentLine == line ? "> " : "  ");
+
+    // Write lines up until end_line
+    while (currentLine <= endLine && file.get(c)) {
+        std::cerr << c;
+        if (c == '\n') {
+            ++currentLine;
+            // Output cursor if we're at the current line
+            std::cerr << (currentLine == line ? "> " : "  ");
+        }
+    }
 }
 
 int debug(const std::string& programName)
