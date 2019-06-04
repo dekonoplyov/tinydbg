@@ -11,6 +11,7 @@ add_executable(tinydbg
         src/breakpoint.cpp src/breakpoint.h
         src/debugger.cpp src/debugger.h
         src/registers.cpp src/registers.h
+        src/symbol.cpp src/symbol.h
         thirdparty/linenoise/linenoise.c)
 
 add_executable(hello example/hello.cpp)

@@ -29,6 +29,14 @@ bool isPrefix(const std::string& prefix, const std::string& s)
     return std::equal(prefix.cbegin(), prefix.cend(), s.cbegin());
 }
 
+bool isSuffix(const std::string& suffix, const std::string& s)
+{
+    if (suffix.size() > s.size()) {
+        return false;
+    }
+    return std::equal(suffix.cbegin(), suffix.cend(), s.cbegin() + suffix.size());
+}
+
 std::vector<std::string> split(const std::string& s, char delimiter)
 {
     std::vector<std::string> tokens;
@@ -134,6 +142,8 @@ void Debugger::handleCommand(const std::string& line)
         stepOut();
     } else if (isPrefix(command, "stepi")) {
         handleStepi();
+    } else if (isPrefix(command, "symbol")) {
+        handleSymbol(args);
     } else {
         std::cerr << "Unknown command\n";
     }
@@ -146,13 +156,20 @@ void Debugger::handleBreakpoint(const std::vector<std::string>& args)
         return;
     }
 
-    auto address = parseAddress(args[1]);
-    if (!address) {
-        std::cerr << "Failed to parse address, expected format: 0xADDRESS\n";
-        return;
+    if (isPrefix("0x", args[1])) {
+        auto address = parseAddress(args[1]);
+        if (!address) {
+            std::cerr << "Failed to parse address, expected format: 0xADDRESS\n";
+            return;
+        }
+        auto offsettedAddress = getOffsettedAddress(*address);
+        setBreakpoint(offsettedAddress);
+    } else if (args[1].find(':') != std::string::npos) {
+        auto fileAndLine = split(args[1], ':');
+        setBreakpointAtLine(fileAndLine[0], std::stoi(fileAndLine[1]));
+    } else {
+        setBreakpointAtFunction(args[1]);
     }
-    auto offsettedAddress = getOffsettedAddress(*address);
-    setBreakpoint(offsettedAddress);
 }
 
 void Debugger::handleRegister(const std::vector<std::string>& args)
@@ -234,6 +251,14 @@ void Debugger::handleStepi()
     const auto line = getLineEntry(getPC());
     printSource(line->file->path, line->line);
 }
+void Debugger::handleSymbol(const std::vector<std::string>& args)
+{
+
+    const auto syms = lookupSymbol(args[1]);
+    for (const auto& s : syms) {
+        std::cout << s.name << ' ' << toString(s.type) << " 0x" << std::hex << s.addr << std::endl;
+    }
+}
 
 void Debugger::continueExecution()
 {
@@ -263,6 +288,45 @@ void Debugger::setBreakpointAtFunction(const std::string& name)
             }
         }
     }
+
+    std::cerr << "Failed to find function: " << name << std::endl;
+}
+void Debugger::setBreakpointAtLine(const std::string& file, size_t line)
+{
+    for (const auto& cu : dwarf.compilation_units()) {
+        if (isSuffix(file, at_name(cu.root()))) {
+            const auto& lineTable = cu.get_line_table();
+            for (const auto& entry : lineTable) {
+                if (entry.is_stmt && entry.line == line) {
+                    setBreakpoint(getOffsettedAddress(entry.address));
+                    return;
+                }
+            }
+        }
+    }
+
+    std::cerr << "Failed to find: " << file << ':' << line << std::endl;
+}
+
+std::vector<Symbol> Debugger::lookupSymbol(const std::string& name)
+{
+    std::vector<Symbol> syms;
+
+    for (const auto& section : elf.sections()) {
+        if (section.get_hdr().type != elf::sht::symtab
+            && section.get_hdr().type != elf::sht::dynsym) {
+            continue;
+        }
+
+        for (auto sym : section.as_symtab()) {
+            if (sym.get_name() == name) {
+                const auto& data = sym.get_data();
+                syms.push_back({toSymbolType(data.type()), sym.get_name(), data.value});
+            }
+        }
+    }
+
+    return syms;
 }
 
 void Debugger::removeBreakpoint(uint64_t address)

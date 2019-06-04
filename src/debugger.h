@@ -1,6 +1,7 @@
 #pragma once
 
 #include "breakpoint.h"
+#include "symbol.h"
 
 #include "dwarf/dwarf++.hh"
 #include "elf/elf++.hh"
@@ -23,10 +24,13 @@ public:
     void handleRegister(const std::vector<std::string>& args);
     void handleMemory(const std::vector<std::string>& args);
     void handleStepi();
+    void handleSymbol(const std::vector<std::string>& args);
     void continueExecution();
     // address should be offset to process virtual memory
     void setBreakpoint(uint64_t address);
     void setBreakpointAtFunction(const std::string& name);
+    void setBreakpointAtLine(const std::string& file, size_t line);
+    std::vector<Symbol> lookupSymbol(const std::string& name);
     void removeBreakpoint(uint64_t address);
     void singleStepInstruction();
     void singleStepInstructionWithBpCheck();
