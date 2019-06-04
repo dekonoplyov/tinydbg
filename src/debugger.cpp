@@ -328,15 +328,15 @@ void Debugger::stepOver()
     const auto functionEntry = at_low_pc(function);
     const auto functionEnd = at_high_pc(function);
 
-    // TODO fix this memoryOffset addition
     auto line = getLineEntry(functionEntry, /*addrOffsetted*/ false);
     const auto startLine = getLineEntry(getPC());
 
     std::vector<uint64_t> toDelete;
     while (line->address < functionEnd) {
-        if (line->address != startLine->address && breakpoints.count(line->address) == 0) {
-            setBreakpoint(line->address);
-            toDelete.push_back(line->address);
+        const auto offsettedLineAddr = getOffsettedAddress(line->address);
+        if (line->address != startLine->address && breakpoints.count(offsettedLineAddr) == 0) {
+            setBreakpoint(offsettedLineAddr);
+            toDelete.push_back(offsettedLineAddr);
         }
         ++line;
     }
