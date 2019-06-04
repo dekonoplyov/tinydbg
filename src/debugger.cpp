@@ -250,6 +250,21 @@ void Debugger::setBreakpoint(uint64_t address)
     breakpoints.insert({address, breakpoint});
 }
 
+void Debugger::setBreakpointAtFunction(const std::string& name)
+{
+    for (const auto& cu : dwarf.compilation_units()) {
+        for (const auto& die : cu.root()) {
+            if (die.has(dwarf::DW_AT::name) && at_name(die) == name) {
+                const auto lowPC = at_low_pc(die);
+                auto entry = getLineEntry(lowPC, /*addrOffsetted*/ false);
+                // skip function prologue
+                ++entry;
+                setBreakpoint(getOffsettedAddress(entry->address));
+            }
+        }
+    }
+}
+
 void Debugger::removeBreakpoint(uint64_t address)
 {
     auto& breakpoint = breakpoints.at(address);
@@ -314,7 +329,7 @@ void Debugger::stepOver()
     const auto functionEnd = at_high_pc(function);
 
     // TODO fix this memoryOffset addition
-    auto line = getLineEntry(functionEntry + memoryOffset);
+    auto line = getLineEntry(functionEntry, /*addrOffsetted*/ false);
     const auto startLine = getLineEntry(getPC());
 
     std::vector<uint64_t> toDelete;
@@ -413,10 +428,13 @@ void Debugger::setPC(uint64_t pc)
     setRegisterValue(pid, Register::rip, pc);
 }
 
-dwarf::die Debugger::getFunction(uint64_t pc)
+dwarf::die Debugger::getFunction(uint64_t pc, bool addrOffsetted)
 {
-    pc -= memoryOffset;
-    for (auto& cu : dwarf.compilation_units()) {
+    if (addrOffsetted) {
+        pc = getSourceAddress(pc);
+    }
+
+    for (const auto& cu : dwarf.compilation_units()) {
         if (die_pc_range(cu.root()).contains(pc)) {
             for (const auto& die : cu.root()) {
                 if (die.tag == dwarf::DW_TAG::subprogram) {
@@ -431,10 +449,13 @@ dwarf::die Debugger::getFunction(uint64_t pc)
     throw std::out_of_range{"Cannot find function"};
 }
 
-dwarf::line_table::iterator Debugger::getLineEntry(uint64_t pc)
+dwarf::line_table::iterator Debugger::getLineEntry(uint64_t pc, bool addrOffsetted)
 {
-    pc -= memoryOffset;
-    for (auto& cu : dwarf.compilation_units()) {
+    if (addrOffsetted) {
+        pc = getSourceAddress(pc);
+    }
+
+    for (const auto& cu : dwarf.compilation_units()) {
         if (die_pc_range(cu.root()).contains(pc)) {
             auto& lineTable = cu.get_line_table();
             auto it = lineTable.find_address(pc);
@@ -452,6 +473,11 @@ dwarf::line_table::iterator Debugger::getLineEntry(uint64_t pc)
 uint64_t Debugger::getOffsettedAddress(uint64_t addr)
 {
     return memoryOffset + addr;
+}
+
+uint64_t Debugger::getSourceAddress(uint64_t offsettedAddress)
+{
+    return offsettedAddress - memoryOffset;
 }
 
 void Debugger::printSource(const std::string& fileName, size_t line, size_t linesContext)

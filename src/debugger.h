@@ -26,6 +26,7 @@ public:
     void continueExecution();
     // address should be offset to process virtual memory
     void setBreakpoint(uint64_t address);
+    void setBreakpointAtFunction(const std::string& name);
     void removeBreakpoint(uint64_t address);
     void singleStepInstruction();
     void singleStepInstructionWithBpCheck();
@@ -42,10 +43,11 @@ public:
     uint64_t getPC() const;
     void setPC(uint64_t pc);
 
-    dwarf::die getFunction(uint64_t pc);
-    dwarf::line_table::iterator getLineEntry(uint64_t pc);
+    dwarf::die getFunction(uint64_t pc, bool addrOffsetted = true);
+    dwarf::line_table::iterator getLineEntry(uint64_t pc, bool addrOffsetted = true);
 
     uint64_t getOffsettedAddress(uint64_t addr);
+    uint64_t getSourceAddress(uint64_t offsettedAddress);
 
     void printSource(const std::string& fileName, size_t line, size_t linesContext = 2);
 
