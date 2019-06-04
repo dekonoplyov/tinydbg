@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.0)
 project(tinydbg)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -20,6 +20,10 @@ set_target_properties(hello
 add_executable(variables example/variables.cpp)
 set_target_properties(variables
         PROPERTIES COMPILE_FLAGS "-g -O0")
+
+add_executable(unwinding example/stack_unwinding.cpp)
+set_target_properties(unwinding
+                      PROPERTIES COMPILE_FLAGS "-g -O0")
 
 add_custom_target(
    libelfin

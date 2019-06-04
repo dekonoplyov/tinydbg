@@ -4,18 +4,18 @@
 
 #include "linenoise.h"
 
-#include <vector>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
 #include <sys/ptrace.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <sstream>
-#include <fstream>
-#include <iostream>
-#include <iomanip>
+#include <vector>
 
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 namespace tinydbg {
 
@@ -126,6 +126,14 @@ void Debugger::handleCommand(const std::string& line)
         handleBreakpoint(args);
     } else if (isPrefix(command, "register")) {
         handleRegister(args);
+    } else if (isPrefix(command, "step")) {
+        stepIn();
+    } else if (isPrefix(command, "next")) {
+        stepOver();
+    } else if (isPrefix(command, "finish")) {
+        stepOut();
+    } else if (isPrefix(command, "stepi")) {
+        handleStepi();
     } else {
         std::cerr << "Unknown command\n";
     }
@@ -143,8 +151,8 @@ void Debugger::handleBreakpoint(const std::vector<std::string>& args)
         std::cerr << "Failed to parse address, expected format: 0xADDRESS\n";
         return;
     }
-
-    setBreakpoint(*address);
+    auto offsettedAddress = getOffsettedAddress(*address);
+    setBreakpoint(offsettedAddress);
 }
 
 void Debugger::handleRegister(const std::vector<std::string>& args)
@@ -220,6 +228,13 @@ void Debugger::handleMemory(const std::vector<std::string>& args)
     }
 }
 
+void Debugger::handleStepi()
+{
+    singleStepInstructionWithBpCheck();
+    const auto line = getLineEntry(getPC());
+    printSource(line->file->path, line->line);
+}
+
 void Debugger::continueExecution()
 {
     stepOverBreakpoint();
@@ -229,11 +244,100 @@ void Debugger::continueExecution()
 
 void Debugger::setBreakpoint(uint64_t address)
 {
-    auto offsettedAddress = getOffsettedAddress(address);
-    std::cerr << "Set breakpoint at address 0x" << std::hex << offsettedAddress << std::endl;
-    Breakpoint breakpoint{pid, offsettedAddress};
+    std::cerr << "Set breakpoint at address 0x" << std::hex << address << std::endl;
+    Breakpoint breakpoint{pid, address};
     breakpoint.enable();
-    breakpoints.insert({offsettedAddress, breakpoint});
+    breakpoints.insert({address, breakpoint});
+}
+
+void Debugger::removeBreakpoint(uint64_t address)
+{
+    auto& breakpoint = breakpoints.at(address);
+    if (breakpoint.isEnabled()) {
+        breakpoint.disable();
+    }
+    breakpoints.erase(address);
+}
+
+void Debugger::singleStepInstruction()
+{
+    ptrace(PTRACE_SINGLESTEP, pid, nullptr, nullptr);
+    waitForSignal();
+}
+void Debugger::singleStepInstructionWithBpCheck()
+{
+    if (breakpoints.count(getPC()) > 0) {
+        stepOverBreakpoint();
+    } else {
+        singleStepInstruction();
+    }
+}
+
+void Debugger::stepIn()
+{
+    const auto line = getLineEntry(getPC())->line;
+
+    // single instruction step until get to new line
+    while (getLineEntry(getPC())->line == line) {
+        singleStepInstructionWithBpCheck();
+    }
+
+    const auto line_entry = getLineEntry(getPC());
+    printSource(line_entry->file->path, line_entry->line);
+}
+
+void Debugger::stepOut()
+{
+    const auto framePointer = getRegisterValue(pid, Register::rbp);
+    const auto returnAddress = readMemory(framePointer + 8);
+
+    bool shouldRemoveBreakpoint = false;
+    if (breakpoints.count(returnAddress) == 0) {
+        setBreakpoint(returnAddress);
+        shouldRemoveBreakpoint = true;
+    }
+
+    continueExecution();
+
+    if (shouldRemoveBreakpoint) {
+        removeBreakpoint(returnAddress);
+    }
+}
+
+void Debugger::stepOver()
+{
+    // to deal with loops, ifs and jumps
+    // add breakpoint on every line in current function
+    // because we don't know which line'll be executed next
+    const auto function = getFunction(getPC());
+    const auto functionEntry = at_low_pc(function);
+    const auto functionEnd = at_high_pc(function);
+
+    // TODO fix this memoryOffset addition
+    auto line = getLineEntry(functionEntry + memoryOffset);
+    const auto startLine = getLineEntry(getPC());
+
+    std::vector<uint64_t> toDelete;
+    while (line->address < functionEnd) {
+        if (line->address != startLine->address && breakpoints.count(line->address) == 0) {
+            setBreakpoint(line->address);
+            toDelete.push_back(line->address);
+        }
+        ++line;
+    }
+
+    const auto framePointer = getRegisterValue(pid, Register::rbp);
+    const auto returnAddress = readMemory(framePointer + 8);
+    if (breakpoints.count(returnAddress) == 0) {
+        setBreakpoint(returnAddress);
+        toDelete.push_back(returnAddress);
+    }
+
+    continueExecution();
+
+    for (const auto address : toDelete) {
+        removeBreakpoint(address);
+    }
 }
 
 void Debugger::stepOverBreakpoint()
@@ -277,7 +381,7 @@ void Debugger::handleSigtrap(siginfo_t siginfo)
         // put pc back where it should be
         setPC(getPC() - 1);
         std::cerr << "Hit breakpoint at address 0x" << std::hex << getPC() << std::endl;
-        auto lineEntry = getLineEntry(getPC());
+        const auto lineEntry = getLineEntry(getPC());
         printSource(lineEntry->file->path, lineEntry->line);
         return;
     }

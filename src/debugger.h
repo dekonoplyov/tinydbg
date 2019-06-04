@@ -22,9 +22,16 @@ public:
     void handleBreakpoint(const std::vector<std::string>& args);
     void handleRegister(const std::vector<std::string>& args);
     void handleMemory(const std::vector<std::string>& args);
+    void handleStepi();
     void continueExecution();
     // address should be offset to process virtual memory
     void setBreakpoint(uint64_t address);
+    void removeBreakpoint(uint64_t address);
+    void singleStepInstruction();
+    void singleStepInstructionWithBpCheck();
+    void stepIn();
+    void stepOut();
+    void stepOver();
     void stepOverBreakpoint();
     void waitForSignal();
     void handleSigtrap(siginfo_t siginfo);
