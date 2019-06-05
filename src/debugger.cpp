@@ -34,7 +34,7 @@ bool isSuffix(const std::string& suffix, const std::string& s)
     if (suffix.size() > s.size()) {
         return false;
     }
-    return std::equal(suffix.cbegin(), suffix.cend(), s.cbegin() + suffix.size());
+    return std::equal(suffix.cbegin(), suffix.cend(), s.cbegin() + (s.size() - suffix.size()));
 }
 
 std::vector<std::string> split(const std::string& s, char delimiter)
@@ -288,9 +288,8 @@ void Debugger::setBreakpointAtFunction(const std::string& name)
             }
         }
     }
-
-    std::cerr << "Failed to find function: " << name << std::endl;
 }
+
 void Debugger::setBreakpointAtLine(const std::string& file, size_t line)
 {
     for (const auto& cu : dwarf.compilation_units()) {
@@ -502,7 +501,14 @@ dwarf::die Debugger::getFunction(uint64_t pc, bool addrOffsetted)
         if (die_pc_range(cu.root()).contains(pc)) {
             for (const auto& die : cu.root()) {
                 if (die.tag == dwarf::DW_TAG::subprogram) {
-                    if (die_pc_range(cu.root()).contains(pc)) {
+                    // TODO investigate this behaviour
+                    // die doesn't have range attrs so you can't use die_pc_range
+                    bool hasRange = die.has(dwarf::DW_AT::low_pc) || die.has(dwarf::DW_AT::ranges);
+                    if (!hasRange) {
+                        continue;
+                    }
+
+                    if (die_pc_range(die).contains(pc)) {
                         return die;
                     }
                 }
@@ -521,7 +527,7 @@ dwarf::line_table::iterator Debugger::getLineEntry(uint64_t pc, bool addrOffsett
 
     for (const auto& cu : dwarf.compilation_units()) {
         if (die_pc_range(cu.root()).contains(pc)) {
-            auto& lineTable = cu.get_line_table();
+            const auto& lineTable = cu.get_line_table();
             auto it = lineTable.find_address(pc);
             if (it == lineTable.end()) {
                 throw std::out_of_range{"Cannot find line entry"};
