@@ -271,8 +271,8 @@ void Debugger::continueExecution()
 
 void Debugger::printBacktrace()
 {
-    auto outputFrame = [frameNumber = 0](auto&& func) {
-        std::cerr << "frame #" << frameNumber
+    auto outputFrame = [frameNumber = 0](auto&& func) mutable {
+        std::cerr << "frame #" << frameNumber++
                   << ": 0x" << dwarf::at_low_pc(func)
                   << ' ' << dwarf::at_name(func) << std::endl;
     };
