@@ -7,6 +7,11 @@
             "label": "Run hello",
             "type": "shell",
             "command": "${workspaceFolder}/build/tinydbg ${workspaceFolder}/build/hello"
+        },
+        {
+            "label": "Run backtrace",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/tinydbg ${workspaceFolder}/build/backtrace"
         }
     ]
 }

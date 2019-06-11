@@ -26,6 +26,7 @@ public:
     void handleStepi();
     void handleSymbol(const std::vector<std::string>& args);
     void continueExecution();
+    void printBacktrace();
     // address should be offset to process virtual memory
     void setBreakpoint(uint64_t address);
     void setBreakpointAtFunction(const std::string& name);

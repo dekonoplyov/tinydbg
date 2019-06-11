@@ -144,6 +144,8 @@ void Debugger::handleCommand(const std::string& line)
         handleStepi();
     } else if (isPrefix(command, "symbol")) {
         handleSymbol(args);
+    } else if (isPrefix(command, "backtrace")) {
+        printBacktrace();
     } else {
         std::cerr << "Unknown command\n";
     }
@@ -265,6 +267,27 @@ void Debugger::continueExecution()
     stepOverBreakpoint();
     ptrace(PTRACE_CONT, pid, nullptr, nullptr);
     waitForSignal();
+}
+
+void Debugger::printBacktrace()
+{
+    auto outputFrame = [frameNumber = 0](auto&& func) {
+        std::cerr << "frame #" << frameNumber
+                  << ": 0x" << dwarf::at_low_pc(func)
+                  << ' ' << dwarf::at_name(func) << std::endl;
+    };
+
+    auto currentFunc = getFunction(getPC());
+    outputFrame(currentFunc);
+    auto framePointer = getRegisterValue(pid, Register::rbp);
+    auto returnAddress = readMemory(framePointer + 8);
+
+    do {
+        currentFunc = getFunction(returnAddress);
+        outputFrame(currentFunc);
+        framePointer = readMemory(framePointer);
+        returnAddress = readMemory(framePointer + 8);
+    } while (dwarf::at_name(currentFunc) != "main");
 }
 
 void Debugger::setBreakpoint(uint64_t address)

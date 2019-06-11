@@ -26,6 +26,10 @@ add_executable(unwinding example/stack_unwinding.cpp)
 set_target_properties(unwinding
                       PROPERTIES COMPILE_FLAGS "-g -O0")
 
+add_executable(backtrace example/backtrace.cpp)
+set_target_properties(backtrace
+                      PROPERTIES COMPILE_FLAGS "-g -O0 -fno-omit-frame-pointer")
+
 add_custom_target(
    libelfin
    COMMAND make
