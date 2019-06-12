@@ -20,7 +20,7 @@ set_target_properties(hello
 
 add_executable(variables example/variables.cpp)
 set_target_properties(variables
-        PROPERTIES COMPILE_FLAGS "-g -O0")
+        PROPERTIES COMPILE_FLAGS "-gdwarf-2 -O0")
 
 add_executable(unwinding example/stack_unwinding.cpp)
 set_target_properties(unwinding

@@ -90,6 +90,35 @@ siginfo_t getSigInfo(pid_t pid)
     return info;
 }
 
+class PtraceExprContext : public dwarf::expr_context {
+public:
+    PtraceExprContext(pid_t pid)
+        : pid{pid}
+    {
+    }
+
+    dwarf::taddr reg(unsigned regnum) override
+    {
+        return getRegisterValueFromDwarf(pid, static_cast<int>(regnum));
+    }
+
+    dwarf::taddr pc() override
+    {
+        struct user_regs_struct regs;
+        ptrace(PTRACE_GETREGS, pid, nullptr, &regs);
+        return regs.rip;
+    }
+
+    dwarf::taddr deref_size(dwarf::taddr address, unsigned size)
+    {
+        // TODO take size into account
+        return ptrace(PTRACE_PEEKDATA, pid, address, nullptr);
+    }
+
+private:
+    pid_t pid;
+};
+
 } // namespace
 
 Debugger::Debugger(std::string programName, int pid)
@@ -146,6 +175,8 @@ void Debugger::handleCommand(const std::string& line)
         handleSymbol(args);
     } else if (isPrefix(command, "backtrace")) {
         printBacktrace();
+    } else if (isPrefix(command, "variables")) {
+        readVariables();
     } else {
         std::cerr << "Unknown command\n";
     }
@@ -288,6 +319,37 @@ void Debugger::printBacktrace()
         framePointer = readMemory(framePointer);
         returnAddress = readMemory(framePointer + 8);
     } while (dwarf::at_name(currentFunc) != "main");
+}
+
+void Debugger::readVariables()
+{
+    const auto func = getFunction(getPC());
+
+    for (const auto& die : func) {
+        if (die.tag == dwarf::DW_TAG::variable) {
+            const auto location = die[dwarf::DW_AT::location];
+            if (location.get_type() == dwarf::value::type::exprloc) {
+                PtraceExprContext context{pid};
+                const auto result = location.as_exprloc().evaluate(&context);
+                switch (result.location_type) {
+                case dwarf::expr_result::type::address: {
+                    const auto value = readMemory(result.value);
+                    std::cerr << at_name(die)
+                              << " (0x" << std::hex << result.value << ") = "
+                              << value << std::endl;
+                }
+                case dwarf::expr_result::type::reg: {
+                    const auto value = getRegisterValueFromDwarf(pid, result.value);
+                    std::cerr << at_name(die)
+                              << " (reg " << result.value << ") = "
+                              << value << std::endl;
+                }
+                default:
+                    throw std::runtime_error{"Unhandled variable location"};
+                }
+            }
+        }
+    }
 }
 
 void Debugger::setBreakpoint(uint64_t address)

@@ -1,6 +1,12 @@
-int main() {
-    long a = 3;
-    long b = 2;
-    long c = a + b;
-    a = 4;
+int foo()
+{
+    int a = 3;
+    int b = 2;
+    int c = a + b;
+    return c;
+}
+
+int main()
+{
+    return foo();
 }
